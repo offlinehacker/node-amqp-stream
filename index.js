@@ -171,6 +171,10 @@ var AmqpStream = function ( options, callback ) {
     var messageHandler = function ( message, headers, deliveryInfo ) {
         if ( 'x-stream-origin' in headers && headers['x-stream-origin'] == stream.originId )
             return; // Do not emit our own writes ( this is for duplex streams )
+
+        if ( typeof(message.data) == 'string' )
+            message = message.data.toString().trim();
+
         if ( deliveryInfo.correlationId ) {
             if ( deliveryInfo.correlationId in stream.correlations ) {
                 var emitter = stream.correlations[ deliveryInfo.correlationId ];
@@ -181,8 +185,7 @@ var AmqpStream = function ( options, callback ) {
                 });
             }
             if ( 'x-stream-event' in headers && headers['x-stream-event'] == 'end') {
-                if ( message.data && message.data.toString().trim() != '' )
-                    emitter.emit( 'data', message.data );
+                if (message) emitter.emit( 'data', message );
                 emitter.emit( 'end' );
                 process.nextTick( function () { delete stream.correlations[deliveryInfo.correlationId] } );
             }
@@ -191,8 +194,7 @@ var AmqpStream = function ( options, callback ) {
             var emitter = stream;
             if ( 'x-stream-event' in headers && headers['x-stream-event'] == 'end' ) {
 
-                if ( message.data && message.data.toString().trim() != '' )
-                    emitter.emit( 'data', message.data );
+                if (message) emitter.emit( 'data', message );
 
                 if( !( emitter.paused || emitter.buffer.length ) )
                     return onEnd();
@@ -203,18 +205,17 @@ var AmqpStream = function ( options, callback ) {
         }
         
         if ( 'x-stream-event' in headers && headers['x-stream-event'] == 'error') {
-            if ( message.data && message.data.toString().trim() != '' )
-                emitter.emit( 'data', message.data );
+            if (message) emitter.emit( 'data', message );
             emitter.emit( 'error' );
         }
         else if ( ( !('x-stream-event' in headers) || ('x-stream-event' in headers && headers['x-stream-event'] == 'data') ) && 
-            message.data && message.data.toString().trim() != '' 
+            message
         ) {
             if ( emitter.paused ) {
-                emitter.buffer.push( message.data );
+                emitter.buffer.push( message );
             }
             else {
-                emitter.emit( 'data', message.data );
+                emitter.emit( 'data', message );
             }
         }
     }
